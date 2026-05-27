@@ -122,62 +122,7 @@ final class MmConfigMigration extends AbstractMigration
                 $config['keyboardNavigation'] = (int) ($module['dk_mmenuKeyboardNavigation'] ?? 0);
                 $config['keyboardNavigationEnhance'] = (int) ($module['dk_mmenuKeyboardNavigationEnhance'] ?? 0);
 
-                $stmt = $this->connection->prepare(
-                    'INSERT INTO tl_dk_mmenu_config (
-                            `title`,
-                            `tstamp`,
-                            `position`,
-                            `zposition`,
-                            `slidingSubmenus`,
-                            `theme`,
-                            `moveBackground`,
-                            `pageDim`,
-                            `fullscreen`,
-                            `countersAdd`,
-                            `columnsAdd`,
-                            `searchfieldAdd`,
-                            `iconPanels`,
-                            `menuEffects`,
-                            `panelEffects`,
-                            `listEffects`,
-                            `shadows`,
-                            `onClickClose`,
-                            `pageSelector`,
-                            `dragOpenEnable`,
-                            `dragOpenMaxStartPos`,
-                            `dragOpenThreshold`,
-                            `polyfillEnable`,
-                            `keyboardNavigation`,
-                            `keyboardNavigationEnhance`
-                        ) VALUES (
-                            :title,
-                            :tstamp,
-                            :position,
-                            :zposition,
-                            :slidingSubmenus,
-                            :theme,
-                            :moveBackground,
-                            :pageDim,
-                            :fullscreen,
-                            :countersAdd,
-                            :columnsAdd,
-                            :searchfieldAdd,
-                            :iconPanels,
-                            :menuEffects,
-                            :panelEffects,
-                            :listEffects,
-                            :shadows,
-                            :onClickClose,
-                            :pageSelector,
-                            :dragOpenEnable,
-                            :dragOpenMaxStartPos,
-                            :dragOpenThreshold,
-                            :polyfillEnable,
-                            :keyboardNavigation,
-                            :keyboardNavigationEnhance
-                        )',
-                );
-                $stmt->executeQuery($config);
+                $this->connection->insert('tl_dk_mmenu_config', $config);
                 $configId = (int) $this->connection->lastInsertId();
 
                 $this->connection->executeStatement(
