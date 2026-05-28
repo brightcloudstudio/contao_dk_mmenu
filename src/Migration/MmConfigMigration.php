@@ -19,6 +19,13 @@ use Doctrine\DBAL\Connection;
 
 final class MmConfigMigration extends AbstractMigration
 {
+    private const array LEGACY_COLUMNS = [
+        'dk_mmenuposition',
+        'dk_mmenuzposition',
+        'dk_mmenuslidingsubmenus',
+        'dk_mmenutheme',
+    ];
+
     private Connection $connection;
 
     public function __construct(Connection $connection)
@@ -32,29 +39,38 @@ final class MmConfigMigration extends AbstractMigration
             $this->connection->createSchemaManager() :
             $this->connection->getSchemaManager();
 
-        if ($schemaManager->tablesExist(['tl_dk_mmenu_config'])) {
-            return false;
-        }
-
         if (!$schemaManager->tablesExist(['tl_module'])) {
             return false;
         }
 
         $columns = $schemaManager->listTableColumns('tl_module');
 
-        if (isset($columns['dk_mmenuconfig'])) {
-            return false;
+        foreach (self::LEGACY_COLUMNS as $column) {
+            if (!isset($columns[$column])) {
+                return false;
+            }
         }
 
-        $query = "SELECT true FROM `tl_module` WHERE `type` LIKE 'mmenu%' LIMIT 1";
+        $query = "SELECT true FROM `tl_module` WHERE `type` LIKE 'mmenu%'";
+
+        if (isset($columns['dk_mmenuconfig'])) {
+            $query .= ' AND (`dk_mmenuConfig` IS NULL OR `dk_mmenuConfig` = 0)';
+        }
+
+        $query .= ' LIMIT 1';
 
         return (bool) $this->connection->executeQuery($query)->fetchOne();
     }
 
     public function run(): MigrationResult
     {
-        $this->connection->executeStatement(
-            "CREATE TABLE tl_dk_mmenu_config(
+        $schemaManager = method_exists($this->connection, 'createSchemaManager') ?
+            $this->connection->createSchemaManager() :
+            $this->connection->getSchemaManager();
+
+        if (!$schemaManager->tablesExist(['tl_dk_mmenu_config'])) {
+            $this->connection->executeStatement(
+                "CREATE TABLE tl_dk_mmenu_config(
                     id INT UNSIGNED AUTO_INCREMENT NOT NULL,
                     tstamp INT UNSIGNED DEFAULT 0 NOT NULL,
                     title VARCHAR(255) DEFAULT '' NOT NULL,
@@ -82,17 +98,40 @@ final class MmConfigMigration extends AbstractMigration
                     keyboardNavigation TINYINT(1) DEFAULT 0 NOT NULL,
                     keyboardNavigationEnhance TINYINT(1) DEFAULT 0 NOT NULL,
                 PRIMARY KEY(id))",
-        );
-        $this->connection->executeStatement(
-            'ALTER TABLE tl_module ADD dk_mmenuConfig INT UNSIGNED DEFAULT 0 NOT NULL',
-        );
+            );
+        }
+
+        $schemaManager = method_exists($this->connection, 'createSchemaManager') ?
+            $this->connection->createSchemaManager() :
+            $this->connection->getSchemaManager();
+
+        if ($schemaManager->tablesExist(['tl_module'])) {
+            $columns = $schemaManager->listTableColumns('tl_module');
+
+            if (!isset($columns['dk_mmenuconfig'])) {
+                $this->connection->executeStatement(
+                    'ALTER TABLE tl_module ADD dk_mmenuConfig INT UNSIGNED DEFAULT 0 NOT NULL',
+                );
+            }
+        }
 
         $schemaManager = method_exists($this->connection, 'createSchemaManager') ?
             $this->connection->createSchemaManager() :
             $this->connection->getSchemaManager();
 
         if ($schemaManager->tablesExist(['tl_dk_mmenu_config', 'tl_module'])) {
-            $result = $this->connection->executeQuery("SELECT * FROM `tl_module` WHERE `type` LIKE 'mmenu%'")->fetchAllAssociative();
+            $columns = $schemaManager->listTableColumns('tl_module');
+
+            foreach (self::LEGACY_COLUMNS as $column) {
+                if (!isset($columns[$column])) {
+                    return $this->createResult(true);
+                }
+            }
+
+            $result = $this->connection
+                ->executeQuery("SELECT * FROM `tl_module` WHERE `type` LIKE 'mmenu%' AND (`dk_mmenuConfig` IS NULL OR `dk_mmenuConfig` = 0)")
+                ->fetchAllAssociative()
+            ;
 
             foreach ($result as $module) {
                 $config = [];
@@ -102,22 +141,22 @@ final class MmConfigMigration extends AbstractMigration
                 $config['zposition'] = $module['dk_mmenuZposition'];
                 $config['slidingSubmenus'] = $module['dk_mmenuSlidingSubmenus'];
                 $config['theme'] = $module['dk_mmenuTheme'];
-                $config['moveBackground'] = (int) $module['dk_mmenuMoveBackground'];
+                $config['moveBackground'] = (int) ($module['dk_mmenuMoveBackground'] ?? 1);
                 $config['pageDim'] = $module['dk_mmenuPageDim'] ?? '';
-                $config['fullscreen'] = (int) $module['dk_mmenuFullscreen'];
-                $config['countersAdd'] = (int) $module['dk_mmenuCountersAdd'];
+                $config['fullscreen'] = (int) ($module['dk_mmenuFullscreen'] ?? 0);
+                $config['countersAdd'] = (int) ($module['dk_mmenuCountersAdd'] ?? 0);
                 $config['columnsAdd'] = (int) ($module['dk_mmenuColumnsAdd'] ?? 0);
-                $config['searchfieldAdd'] = (int) $module['dk_mmenuSearchfieldAdd'];
+                $config['searchfieldAdd'] = (int) ($module['dk_mmenuSearchfieldAdd'] ?? 0);
                 $config['iconPanels'] = (int) ($module['dk_mmenuIconPanels'] ?? 0);
                 $config['menuEffects'] = $module['dk_mmenuMenuEffects'] ?? '';
                 $config['panelEffects'] = $module['dk_mmenuPanelEffects'] ?? '';
                 $config['listEffects'] = $module['dk_mmenuListEffects'] ?? '';
                 $config['shadows'] = (int) ($module['dk_mmenuShadows'] ?? 0);
-                $config['onClickClose'] = (int) $module['dk_mmenuOnClickClose'];
+                $config['onClickClose'] = (int) ($module['dk_mmenuOnClickClose'] ?? 0);
                 $config['pageSelector'] = $module['dk_mmenuPageSelector'] ?? '';
                 $config['dragOpenEnable'] = (int) ($module['dk_mmenuDragOpenEnable'] ?? 0);
                 $config['dragOpenMaxStartPos'] = (int) ($module['dk_mmenuDragOpenMaxStartPos'] ?? 0);
-                $config['dragOpenThreshold'] = (int) $module['dk_mmenuDragOpenThreshold'];
+                $config['dragOpenThreshold'] = (int) ($module['dk_mmenuDragOpenThreshold'] ?? 50);
                 $config['polyfillEnable'] = (int) ($module['dk_mmenuPolyfillEnable'] ?? 0);
                 $config['keyboardNavigation'] = (int) ($module['dk_mmenuKeyboardNavigation'] ?? 0);
                 $config['keyboardNavigationEnhance'] = (int) ($module['dk_mmenuKeyboardNavigationEnhance'] ?? 0);
